@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, shipping_text, rule_inputs %}
+{% block title %}{{ product.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="crumbs"><a href="/">Articles</a> /</p>
+    <h1>{{ product.name }}</h1>
+    <p>{{ status_badge(summary) }}</p>
+  </div>
+  {% if runner %}
+  <form method="post" action="/products/{{ product.id }}/check">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button class="btn">⟳ Vérifier maintenant</button>
+  </form>
+  {% endif %}
+</div>
+
+<section class="stats">
+  <div class="stat">
+    <span class="stat-label">Meilleur prix actuel</span>
+    <span class="stat-value">{{ summary.best.total_cents | eur if summary.best else "—" }}</span>
+    <span class="muted small">{% if summary.best %}{{ summary.best.store }} · {{ shipping_text(summary.best) }}{% else %}aucune offre disponible récente{% endif %}</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Seuil</span>
+    <span class="stat-value">{{ product.target_cents | eur }}</span>
+    <span class="muted small">{% if summary.target_gap is not none %}écart {{ summary.target_gap | pct }}{% else %}pas de seuil{% endif %}</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Plus bas {{ product.rules.lowest_window_days }} j</span>
+    <span class="stat-value">{{ summary.low | eur }}</span>
+    <span class="muted small">{{ summary.days }} jour(s) d'historique</span>
+  </div>
+  <div class="stat">
+    <span class="stat-label">Médiane {{ product.rules.median_window_days }} j</span>
+    <span class="stat-value">{{ summary.median | eur }}</span>
+    <span class="muted small">prix habituel</span>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Meilleur prix par jour <small class="muted">port compris, toutes boutiques</small></h2>
+  {{ chart }}
+  {% if summary.series %}
+  <details class="small">
+    <summary>Voir les valeurs</summary>
+    <table class="compact">
+      <thead><tr><th>Jour</th><th class="num">Meilleur prix</th></tr></thead>
+      <tbody>{% for day, cents in summary.series | reverse %}<tr><td>{{ day }}</td><td class="num">{{ cents | eur }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </details>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Boutiques</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Boutique</th><th class="num">Prix</th><th class="num">Port</th><th class="num">Total</th><th>Stock</th><th>Relevé</th><th></th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+      {% set offer = by_url.get(row.url) %}
+      {% set obs = summary.latest.get(row.url) %}
+      {% set fail = failures.get(row.url) %}
+      <tr class="{{ 'is-best' if summary.best and summary.best.offer_url == row.url }}">
+        <td><a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ offer.store if offer else row.url }} ↗</a>
+          {% if summary.best and summary.best.offer_url == row.url %}<span class="badge good">meilleur</span>{% endif %}
+          {% if fail %}<small class="err-text" title="{{ fail[1] }}">⚠ {{ fail[0] }} échec(s) : {{ fail[1] }}</small>{% endif %}</td>
+        <td class="num">{{ obs.price_cents | eur if obs else "—" }}</td>
+        <td class="num">{% if obs %}{{ "offert" if obs.shipping_cents == 0 and obs.shipping_src != "inconnu" else ("?" if obs.shipping_src == "inconnu" else obs.shipping_cents | eur) }}{% if obs.shipping_src not in ("offert", "inconnu", none) %}<small class="muted">{{ obs.shipping_src }}</small>{% endif %}{% else %}—{% endif %}</td>
+        <td class="num strong">{{ obs.total_cents | eur if obs else "—" }}</td>
+        <td>{% if obs %}{{ {True: "✓ en stock", False: "✗ rupture", None: "?"}[obs.in_stock] }}{% else %}—{% endif %}</td>
+        <td class="muted">{{ obs.ts | ago if obs else "jamais" }}</td>
+        <td><div class="actions">
+          <details class="menu">
+            <summary class="btn ghost small">Modifier</summary>
+            <form class="stack popover" method="post" action="/products/{{ product.id }}/offers/{{ row.id }}/edit">
+              <input type="hidden" name="csrf_token" value="{{ csrf }}">
+              <label class="field"><span>Nom affiché</span><input name="store" value="{{ row.store or '' }}" placeholder="{{ offer.store if offer else '' }}"></label>
+              <label class="field"><span>Port forcé (€)</span><input name="shipping" inputmode="decimal" value="{{ '%.2f' | format(row.shipping_cents / 100) if row.shipping_cents is not none else '' }}" placeholder="auto"></label>
+              <label class="field"><span>Port offert dès (€)</span><input name="free_above" inputmode="decimal" value="{{ '%.2f' | format(row.free_above_cents / 100) if row.free_above_cents is not none else '' }}" placeholder="politique boutique"></label>
+              <label class="field"><span>Sélecteur CSS du prix</span><input name="selector" value="{{ row.selector or '' }}" placeholder="auto"></label>
+              <label class="check"><input type="checkbox" name="browser" value="1" {% if row.browser %}checked{% endif %}> Navigateur headless</label>
+              <button class="btn primary small">Enregistrer</button>
+            </form>
+          </details>
+          <form method="post" action="/products/{{ product.id }}/offers/{{ row.id }}/delete" data-confirm="Retirer cette boutique du suivi ?">
+            <input type="hidden" name="csrf_token" value="{{ csrf }}">
+            <button class="btn ghost small danger" aria-label="Retirer">✕</button>
+          </form>
+        </div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <details class="add-offer">
+    <summary class="btn small">+ Ajouter une boutique</summary>
+    <form class="grid-2" method="post" action="/products/{{ product.id }}/offers">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <label class="field wide"><span>URL de la page produit</span><input name="url" type="url" required placeholder="https://..."></label>
+      <label class="field"><span>Port forcé (€) <small class="muted">optionnel</small></span><input name="shipping" inputmode="decimal" placeholder="auto"></label>
+      <label class="field"><span>Sélecteur CSS <small class="muted">optionnel</small></span><input name="selector" placeholder="auto"></label>
+      <div class="wide"><button class="btn primary">Ajouter et vérifier</button></div>
+    </form>
+  </details>
+</section>
+
+<section class="card">
+  <h2>Réglages de l'article</h2>
+  <form class="stack" method="post" action="/products/{{ product.id }}/edit">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="grid-2">
+      <label class="field"><span>Nom</span><input name="name" required maxlength="120" value="{{ product.name }}"></label>
+      <label class="field"><span>Seuil (€, port compris)</span><input name="target_price" inputmode="decimal" value="{{ '%.2f' | format(product.target_cents / 100) if product.target_cents is not none else '' }}" placeholder="aucun"></label>
+    </div>
+    <label class="check"><input type="checkbox" name="enabled" value="1" {% if product.enabled %}checked{% endif %}> Suivi actif</label>
+    <details>
+      <summary>Règles d'alerte <small class="muted">(vide = réglages globaux)</small></summary>
+      {{ rule_inputs(overrides, defaults.__dict__, true) }}
+    </details>
+    <div><button class="btn primary">Enregistrer</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Alertes envoyées</h2>
+  {% if alerts %}
+  <table class="compact">
+    <thead><tr><th>Date</th><th class="num">Prix</th><th>Boutique</th><th>Règles</th></tr></thead>
+    <tbody>{% for ts, cents, store, rules in alerts %}<tr><td>{{ ts | dt }}</td><td class="num">{{ cents | eur }}</td><td>{{ store }}</td><td class="muted">{{ rules }}</td></tr>{% endfor %}</tbody>
+  </table>
+  {% else %}<p class="muted">Aucune alerte pour l'instant.</p>{% endif %}
+</section>
+
+<section class="card danger-zone">
+  <h2>Supprimer l'article</h2>
+  <form method="post" action="/products/{{ product.id }}/delete" data-confirm="Supprimer définitivement « {{ product.name }} » ?">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label class="check"><input type="checkbox" name="purge" value="1" checked> Effacer aussi l'historique des prix</label>
+    <button class="btn danger">Supprimer</button>
+  </form>
+</section>
+{% endblock %}

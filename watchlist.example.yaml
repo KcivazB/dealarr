@@ -1,0 +1,86 @@
+# Copier en watchlist.yaml. Le fichier est relu à chaque cycle : pas besoin de redémarrer.
+
+# Règles par défaut (surchargeables par produit dans "rules:")
+defaults:
+  tolerance_pct: 5        # alerte jusqu'à +5 % au-dessus du seuil / du plus bas
+  drop_pct: 15            # alerte si -15 % vs la médiane des 30 derniers jours
+  lowest_window_days: 90
+  median_window_days: 30
+  min_history_days: 7     # jours d'historique avant d'activer "plus bas" et "baisse"
+  require_in_stock: true  # ignorer les offres en rupture
+  renotify_drop_pct: 2    # re-notifier seulement si le prix baisse encore de 2 %
+  cooldown_hours: 12      # réarmement après remontée du prix
+
+# Port estimé quand rien n'est connu (évite qu'une boutique sans info gagne la comparaison avec 0 €).
+# Signalé "port estimé" dans les notifications. Retirer la ligne pour compter 0 € + "port ?".
+default_shipping: 4.90
+
+# Frais de port par boutique, pour UN jeu (~1 kg), mode le moins cher (point relais en général).
+# Ordre de résolution : `shipping` forcé sur l'offre > seuil `free_above` atteint > port lu dans la page
+#                       > `tiers` (paliers selon le prix) > `cost` > `default_shipping` (estimé).
+# Relevé sur les pages officielles le 05/11/2026 : à revérifier de temps en temps (Black Friday...).
+stores:
+  philibertnet.com:       # relais 2SHOP ; Mondial Relay / Colissimo domicile offerts dès 80 € (4,95 € dessous)
+    cost: 1.95
+    free_above: 60
+  ludum.fr:               # Mondial Relay offert dès 40 € ; coût sous le seuil non publié ("selon le poids")
+    free_above: 40
+  bcd-jeux.fr:            # relais Chronopost 2Shop (domicile Colissimo offert dès 69 €)
+    free_above: 49
+    tiers:
+      - {below: 15, cost: 3.90}
+      - {below: 30, cost: 3.20}
+      - {below: 49, cost: 2.20}
+  le-passe-temps.com:     # locker/relais ; domicile Colissimo 6 € (grille du blog, déc. 2025)
+    cost: 4.00
+    free_above: 70
+  lepion.com:             # relais Chronopost 0,5-1 kg (4,22 € de 1 à 2 kg, lu aussi dans la page)
+    cost: 3.83
+    free_above: 49
+  espritjeu.com:          # Mondial Relay offert dès 49 € ; 2,90 € = minimum affiché, pas un tarif 1 kg
+    cost: 2.90
+    free_above: 49
+  ipa-gameshop.com:       # Colissimo point retrait 750 g-1 kg ; seuil 60 € HT ≈ 72 € TTC
+    cost: 4.72
+    free_above: 72
+  cultura.com:            # relais ou domicile ; hors vendeurs marketplace
+    cost: 3.00
+    free_above: 40
+  king-jouet.com:         # relais "à partir de" ; domicile offert dès 79 € ; retrait magasin offert dès 39 €
+    cost: 3.90
+    free_above: 59
+  lagranderecre.fr:       # relais Colissimo, pas de seuil publié (domicile 6,99 €)
+    cost: 4.99
+  amazon.fr:              # le port est lu dans la page ; repli : retrait gratuit pour les articles éligibles
+    cost: 0
+  # e.leclerc : conditions introuvables (site 100 % JavaScript) → port signalé comme inconnu
+
+products:
+  - id: azul                        # identifiant unique (minuscules, chiffres, - _)
+    name: Azul
+    target_price: 32                # ping si <= 32 € port compris (+5 % → 33,60 €)
+    offers:
+      - https://www.philibertnet.com/fr/next-move/54391-azul-826956620105.html
+      - https://www.ludum.fr/jeux-de-strategie-en-famille/azul-193
+      - https://www.le-passe-temps.com/abstrait-tactique/5960-azul.html
+      - https://www.lepion.com/jeu/azul/
+      - https://www.espritjeu.com/jeux-de-strategie/azul.html
+      - https://www.king-jouet.com/jeu-jouet/jeux-societes/jeux-strategie/ref-734688-azul-asmodee.htm
+      - https://www.lagranderecre.fr/jeux-de-societe/jeux-de-strategie-et-de-reflexion/azul.html
+      - https://www.cultura.com/p-azul-jeu-de-societe-0826956420200.html
+      - https://www.e.leclerc/fp/azul-0826956620105
+      - url: https://www.amazon.fr/dp/B077MZ2MPW
+        # shipping: 4.99              # forcer les frais de port de cette offre
+        # free_above: 35              # surcharger le seuil de gratuité de la boutique
+        # selector: ".mon-prix"       # sélecteur CSS si l'extraction auto échoue
+        # browser: true               # forcer le navigateur headless (image "browser")
+
+  - id: azul-duel
+    name: Azul Duel
+    # pas de target_price : seules les règles "plus bas" et "vraie baisse" s'appliquent
+    rules:
+      drop_pct: 20
+    offers:
+      - https://www.bcd-jeux.fr/conquete-strategie-gestion/28033-azul-duel-next-move-0826956611608.html
+      - https://www.ludum.fr/jeux-de-strategie-en-famille/azul-duel-9121
+      - https://www.lepion.com/jeux-a-deux/2976-azul-duel-0826956611608.html

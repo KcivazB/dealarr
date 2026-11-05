@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Ajouter un article{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Ajouter par URL</h1><p class="muted">Plus simple : <a href="/search">chercher par nom / EAN</a>.</p></div></div>
+{% if error %}<div class="flash err" role="alert">⚠ {{ error }}</div>{% endif %}
+<form class="card stack" method="post" action="/products" id="new-product">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <label class="field">
+    <span>URLs des pages produit <small class="muted">(une par ligne, une par boutique)</small></span>
+    <textarea name="urls" id="urls" rows="6" required placeholder="https://www.philibertnet.com/fr/...&#10;https://www.ludum.fr/...">{{ form_urls or prefill_url }}</textarea>
+  </label>
+  <div>
+    <button type="button" class="btn" id="probe-btn">🔍 Aperçu des prix</button>
+    <span class="muted small" id="probe-status" aria-live="polite"></span>
+  </div>
+  <div id="probe-results" class="table-wrap" hidden>
+    <table>
+      <thead><tr><th>Boutique</th><th>Titre lu</th><th class="num">Prix</th><th class="num">Port</th><th class="num">Total</th><th>Stock</th><th>Remarque</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="grid-2">
+    <label class="field">
+      <span>Nom</span>
+      <input name="name" id="name" required maxlength="120" value="{{ form_name or '' }}" placeholder="Rempli depuis l'aperçu">
+    </label>
+    <label class="field">
+      <span>Seuil d'alerte (€, port compris) <small class="muted">optionnel</small></span>
+      <input name="target_price" inputmode="decimal" value="{{ form_target or '' }}" placeholder="ex. 32">
+      <small class="muted">Alerte dès que le meilleur prix passe sous ce seuil (+ tolérance de 5 % par défaut). Sans seuil : alertes « plus bas » et « vraie baisse » uniquement.</small>
+    </label>
+  </div>
+  <label class="check"><input type="checkbox" name="check_now" value="1" checked> Lancer une première vérification tout de suite</label>
+  <div><button class="btn primary">Ajouter l'article</button> <a class="btn ghost" href="/">Annuler</a></div>
+</form>
+{% endblock %}

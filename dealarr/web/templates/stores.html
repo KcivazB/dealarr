@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Boutiques{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Boutiques &amp; frais de port</h1>
+    <p class="muted">Pour un jeu (~1 kg), mode le moins cher. Priorité : port forcé sur l'offre › seuil « offert dès » atteint › port lu dans la page › paliers › coût › port estimé ({{ default_shipping | eur }}, voir Réglages).</p>
+  </div>
+</div>
+
+{% if failures %}
+<section class="card">
+  <h2>Offres en échec</h2>
+  <table class="compact">
+    <thead><tr><th>URL</th><th>Articles</th><th class="num">Échecs</th><th>Dernière erreur</th></tr></thead>
+    <tbody>
+    {% for url, count, err, owners in failures %}
+      <tr><td><a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url | truncate(60) }}</a></td>
+        <td>{% for pid in owners %}<a href="/products/{{ pid }}">{{ pid }}</a>{{ ", " if not loop.last }}{% endfor %}</td>
+        <td class="num">{% if count >= threshold %}<span class="badge serious">⚠ {{ count }}</span>{% else %}{{ count }}{% endif %}</td>
+        <td class="muted">{{ err }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Politiques de livraison</h2>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Domaine</th><th class="num">Coût</th><th class="num">Offert dès</th><th>Paliers</th><th>Note</th><th></th></tr></thead>
+    <tbody>
+    {% for p in policies %}
+      <tr>
+        <td>{{ p.domain }}</td>
+        <td class="num">{{ p.cost_cents | eur }}</td>
+        <td class="num">{{ p.free_above_cents | eur }}</td>
+        <td class="small">{% for below, cost in p.tiers %}&lt; {{ below | eur }} : {{ cost | eur }}{{ "; " if not loop.last }}{% endfor %}</td>
+        <td class="muted small">{{ p.note or "" }}</td>
+        <td><div class="actions">
+          <details class="menu">
+            <summary class="btn ghost small">Modifier</summary>
+            <form class="stack popover" method="post" action="/stores">
+              <input type="hidden" name="csrf_token" value="{{ csrf }}">
+              <input type="hidden" name="domain" value="{{ p.domain }}">
+              <label class="field"><span>Coût (€)</span><input name="cost" inputmode="decimal" value="{{ '%.2f' | format(p.cost_cents / 100) if p.cost_cents is not none else '' }}"></label>
+              <label class="field"><span>Offert dès (€)</span><input name="free_above" inputmode="decimal" value="{{ '%.2f' | format(p.free_above_cents / 100) if p.free_above_cents is not none else '' }}"></label>
+              <label class="field"><span>Paliers <small class="muted">seuil:coût ; …</small></span><input name="tiers" value="{% for b, c in p.tiers %}{{ '%.2f' | format(b / 100) }}:{{ '%.2f' | format(c / 100) }}{{ '; ' if not loop.last }}{% endfor %}"></label>
+              <label class="field"><span>Note</span><input name="note" value="{{ p.note or '' }}" maxlength="200"></label>
+              <button class="btn primary small">Enregistrer</button>
+            </form>
+          </details>
+          <form method="post" action="/stores/{{ p.domain }}/delete" data-confirm="Supprimer la politique de {{ p.domain }} ?">
+            <input type="hidden" name="csrf_token" value="{{ csrf }}">
+            <button class="btn ghost small danger" aria-label="Supprimer">✕</button>
+          </form>
+        </div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if missing %}<p class="small">Sans politique (port lu dans la page ou estimé) : {% for d in missing %}<code>{{ d }}</code>{{ ", " if not loop.last }}{% endfor %}</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Ajouter une boutique</h2>
+  <form class="grid-2" method="post" action="/stores">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label class="field"><span>Domaine</span><input name="domain" required placeholder="ex. ludum.fr" value="{{ missing[0] if missing else '' }}"></label>
+    <label class="field"><span>Coût (€)</span><input name="cost" inputmode="decimal" placeholder="ex. 4,90"></label>
+    <label class="field"><span>Offert dès (€)</span><input name="free_above" inputmode="decimal" placeholder="ex. 49"></label>
+    <label class="field"><span>Paliers <small class="muted">optionnel</small></span><input name="tiers" placeholder="15:3,90 ; 30:3,20"></label>
+    <label class="field wide"><span>Note</span><input name="note" maxlength="200" placeholder="mode, source, date de relevé…"></label>
+    <div class="wide"><button class="btn primary">Enregistrer</button></div>
+  </form>
+</section>
+{% endblock %}

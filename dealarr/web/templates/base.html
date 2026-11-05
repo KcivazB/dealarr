@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf }}">
+  <meta name="referrer" content="no-referrer">
+  <title>{% block title %}dealarr{% endblock %} · dealarr</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <script src="/static/app.js?v={{ version }}" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/static/icon.svg" alt="" width="22" height="22">dealarr</a>
+    <nav>
+      <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>Articles</a>
+      <a href="/stores" {% if path == "/stores" %}aria-current="page"{% endif %}>Boutiques</a>
+      <a href="/settings" {% if path == "/settings" %}aria-current="page"{% endif %}>Réglages</a>
+    </nav>
+    <a class="btn primary" href="/search">+ Ajouter</a>
+  </header>
+  <main>
+    {% if flash_ok %}<div class="flash ok" role="status">✓ {{ flash_ok }}</div>{% endif %}
+    {% if flash_err %}<div class="flash err" role="alert">⚠ {{ flash_err }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="muted">dealarr {{ version }}{% if runner and runner.running %} · vérification en cours…{% endif %}</footer>
+</body>
+</html>

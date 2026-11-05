@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Ajouter un article{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Ajouter un article</h1>
+    <p class="muted">Jeux de société : 9 boutiques, l'EAN (code-barres) confirme la bonne édition.
+      LEGO : tape le numéro de set (ex. 75313) — recherche sur E.Leclerc et La Grande Récré.</p>
+  </div>
+</div>
+
+<form class="card search-form" method="get" action="/search" id="search-form">
+  <label class="field"><span>Type</span>
+    <select name="kind">
+      <option value="auto" {% if kind == "auto" %}selected{% endif %}>Automatique</option>
+      <option value="game" {% if kind == "game" %}selected{% endif %}>Jeu de société</option>
+      <option value="lego" {% if kind == "lego" %}selected{% endif %}>LEGO (n° de set)</option>
+    </select></label>
+  <label class="field grow"><span>Nom du jeu ou n° de set LEGO</span>
+    <input name="q" value="{{ q }}" required maxlength="200" placeholder="ex. Azul, Cascadia… ou 75313" autofocus></label>
+  <label class="field"><span>EAN <small class="muted">optionnel</small></span>
+    <input name="ean" value="{{ ean }}" inputmode="numeric" maxlength="20" placeholder="ex. 0826956620105"></label>
+  <button class="btn primary" id="search-btn">🔍 Chercher</button>
+  <span class="muted small" id="search-status" aria-live="polite"></span>
+</form>
+<p class="small muted">Tu peux aussi coller l'URL d'une fiche dans « Nom du jeu », ou <a href="/products/new">ajouter des URLs à la main</a>.</p>
+
+{% if error %}<div class="flash err" role="alert">⚠ {{ error }}</div>{% endif %}
+
+{% if result %}
+<p class="muted small">{{ result.groups | length }} produit(s) trouvé(s) en {{ "%.0f" | format(result.seconds) }} s.
+  {% if result.target_ean %}EAN recherché : <code>{{ result.target_ean }}</code>.{% endif %}
+  {% if result.set_number %}Set LEGO <code>{{ result.set_number }}</code> (reconnu par son numéro dans l'URL ou le titre).{% endif %}
+  {% for name, err in result.failures %}<span class="err-text">⚠ {{ name }} : {{ err }}</span> {% endfor %}</p>
+
+{% if result.target_ean and not (result.groups and result.groups[0].ean == result.target_ean) %}
+<div class="flash err">Aucune boutique n'affiche cet EAN : vérifie le code, ou choisis parmi les résultats ci-dessous.</div>
+{% endif %}
+
+{% set main = [] %}{% set other = [] %}
+{% for g in result.groups %}{% if g.relevance >= 0.35 or (result.target_ean and g.ean == result.target_ean) %}{% set _ = main.append(g) %}{% else %}{% set _ = other.append(g) %}{% endif %}{% endfor %}
+{% macro group_card(g, loop) %}
+  {% set is_target = (result.target_ean and g.ean == result.target_ean) or result.set_number %}
+  <form class="card group {{ 'is-target' if is_target }}" method="post" action="/products">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="group-head">
+      <div>
+        <h2>{{ g.title }}</h2>
+        <p class="small muted">
+          {% if g.ean %}EAN <code>{{ g.ean }}</code>{% else %}sans code-barres{% endif %}
+          · {{ g.candidates | length }} boutique(s)
+          {% if g.best %}· dès <strong>{{ g.best.total_cents | eur }}</strong> port compris{% endif %}
+        </p>
+      </div>
+      <div>
+        {% if is_target %}<span class="badge good">✓ {{ "Set " ~ result.set_number if result.set_number else "Correspond à ton EAN" }}</span>{% endif %}
+        {% if g.fuzzy %}<span class="badge warn" title="Certaines fiches n'ont pas de code-barres : rattachées par le titre">◎ À vérifier</span>{% endif %}
+      </div>
+    </div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th></th><th>Boutique</th><th class="num">Prix</th><th class="num">Port</th><th class="num">Total</th><th>Stock</th><th></th></tr></thead>
+      <tbody>
+      {% for c in g.candidates %}
+        {% set sure = (g.ean and c.ean == g.ean) or result.set_number %}
+        <tr>
+          <td><input type="checkbox" name="url" value="{{ c.url }}" aria-label="Suivre chez {{ c.store }}" {% if sure and (is_target or not result.target_ean) %}checked{% endif %}></td>
+          <td>{{ c.store }}
+            {% if not sure %}<small class="muted">rattaché par le titre : « {{ c.title }} »</small>{% endif %}
+            {% if tracked.get(c.url) %}<small class="muted">déjà suivi ({{ tracked[c.url] | join(", ") }})</small>{% endif %}</td>
+          <td class="num">{{ c.price_cents | eur }}</td>
+          <td class="num">{% if c.shipping_cents is none %}?{% elif c.shipping_cents == 0 %}offert{% else %}{{ c.shipping_cents | eur }}{% endif %}
+            <small class="muted">{{ c.shipping_source }}</small></td>
+          <td class="num strong">{{ c.total_cents | eur }}</td>
+          <td>{{ {True: "✓ en stock", False: "✗ rupture", None: "?"}[c.in_stock] }}</td>
+          <td><a href="{{ c.url }}" target="_blank" rel="noopener noreferrer">voir ↗</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <details class="track" {% if is_target or (loop.first and not result.target_ean) %}open{% endif %}>
+      <summary class="btn {{ 'primary' if is_target or (loop.first and not result.target_ean) }}">Suivre ce jeu…</summary>
+      <div class="grid-2 track-form">
+        <label class="field"><span>Nom</span><input name="name" required maxlength="120" value="{{ g.title }}"></label>
+        <label class="field"><span>Seuil d'alerte (€, port compris) <small class="muted">optionnel</small></span>
+          <input name="target_price" inputmode="decimal" placeholder="{% if g.best %}ex. {{ '%.0f' | format(g.best.total_cents * 0.85 / 100) }}{% endif %}"></label>
+        <label class="check wide"><input type="checkbox" name="check_now" value="1" checked> Lancer une première vérification</label>
+        <div class="wide"><button class="btn primary">Suivre les boutiques cochées</button></div>
+      </div>
+    </details>
+  </form>
+{% endmacro %}
+
+{% for g in main %}{{ group_card(g, loop) }}{% else %}
+  <section class="card empty"><p>Aucun résultat pertinent. Essaie un nom plus court, ou sans sous-titre.</p></section>
+{% endfor %}
+{% if other %}
+<details class="card">
+  <summary>Autres résultats moins proches ({{ other | length }})</summary>
+  {% for g in other %}{{ group_card(g, loop) }}{% endfor %}
+</details>
+{% endif %}
+
+<section class="card">
+  <h2>Boutiques à vérifier à la main</h2>
+  <p class="small muted">Leur recherche (ou tout le site, pour LEGO.com) est protégée contre les robots : dealarr ne les interroge pas. Ouvre-les, copie l'URL de la fiche, puis ajoute-la dans la fiche de l'article (« + Ajouter une boutique »).</p>
+  <p>{% for name, url in result.manual %}<a class="btn small" href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ name }} ↗</a> {% endfor %}</p>
+</section>
+{% endif %}
+{% endblock %}

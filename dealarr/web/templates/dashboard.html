@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, shipping_text %}
+{% block title %}Articles{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Articles suivis</h1>
+    <p class="muted">{{ summaries | length }} article(s) · dernier relevé {{ last_check | ago }}
+      {% if runner and runner.next_run_ts %} · prochain cycle {{ runner.next_run_ts | dt }}{% endif %}
+      {% if failing %} · <a href="/stores">⚠ {{ failing }} offre(s) en échec</a>{% endif %}</p>
+  </div>
+  {% if runner %}
+  <form method="post" action="/check-all">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button class="btn">⟳ Tout vérifier</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if not summaries %}
+<section class="card empty">
+  <h2>Aucun article pour l'instant</h2>
+  <p>Tape le nom d'un jeu (et son EAN si tu l'as) : dealarr le cherche dans les boutiques, puis surveille son prix.</p>
+  <a class="btn primary" href="/search">+ Ajouter un article</a>
+</section>
+{% else %}
+<div class="table-wrap">
+<table class="products">
+  <thead>
+    <tr>
+      <th>Article</th>
+      <th class="num">Meilleur prix</th>
+      <th class="hide-sm">Boutique</th>
+      <th class="num">Seuil</th>
+      <th class="num hide-sm">Plus bas</th>
+      <th class="hide-sm">60 jours</th>
+      <th>État</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for s in summaries %}
+    <tr class="{{ 'is-off' if s.status == 'off' }}">
+      <td><a class="product-link" href="/products/{{ s.product.id }}">{{ s.product.name }}</a>
+        <small class="muted">{{ s.product.offers | length }} boutique(s)</small></td>
+      <td class="num strong">
+        {% if s.best %}{{ s.best.total_cents | eur }}<small class="muted">{{ shipping_text(s.best) }}</small>{% else %}—{% endif %}
+      </td>
+      <td class="hide-sm">{% if s.best %}<a href="{{ s.best.offer_url }}" target="_blank" rel="noopener noreferrer">{{ s.best.store }} ↗</a>{% endif %}</td>
+      <td class="num">{{ s.product.target_cents | eur }}
+        {% if s.target_gap is not none %}<small class="{{ 'delta-good' if s.target_gap <= 5 else 'muted' }}">{{ s.target_gap | pct }}</small>{% endif %}</td>
+      <td class="num hide-sm">{{ s.low | eur }}</td>
+      <td class="hide-sm">{{ sparkline(s.series) }}</td>
+      <td>{{ status_badge(s) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted small">Prix port compris. « Plus bas » : sur la fenêtre de chaque article (90 j par défaut), offres en stock.</p>
+{% endif %}
+{% endblock %}

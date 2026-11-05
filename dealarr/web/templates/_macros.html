@@ -1,0 +1,39 @@
+{% macro status_badge(s) %}
+  {% if s.status == "deal" %}<span class="badge good">🔔 Alerte envoyée</span>
+  {% elif s.status == "near" %}<span class="badge warn">◎ Proche du seuil</span>
+  {% elif s.status == "off" %}<span class="badge muted">⏸ En pause</span>
+  {% elif s.status == "nodata" %}<span class="badge muted">… Pas de relevé récent</span>
+  {% endif %}
+  {% if s.failing %}<span class="badge serious" title="Au moins une boutique ne répond pas">⚠ {{ s.failing }} en échec</span>{% endif %}
+  {% if s.pending %}<span class="badge info">⟳ Vérification…</span>{% endif %}
+{% endmacro %}
+
+{% macro shipping_text(obs) %}
+  {%- if obs.shipping_src == "inconnu" -%}port ?
+  {%- elif obs.shipping_cents == 0 -%}port offert
+  {%- elif obs.shipping_src == "estimé" -%}+ ~{{ obs.shipping_cents | eur }} estimé
+  {%- else -%}+ {{ obs.shipping_cents | eur }}
+  {%- endif -%}
+{% endmacro %}
+
+{% macro rule_inputs(values, placeholders, inherit) %}
+<div class="grid-rules">
+  {% for name, kind in rule_types.items() %}
+    {% set label, help = rule_labels[name] %}
+    <label class="field">
+      <span>{{ label }}</span>
+      {% if kind == "bool" %}
+        {% set current = values.get(name) %}
+        <select name="rule_{{ name }}">
+          {% if inherit %}<option value="" {% if current is none %}selected{% endif %}>Hériter ({{ "oui" if placeholders[name] else "non" }})</option>{% endif %}
+          <option value="true" {% if current == true or (not inherit and current is none and placeholders[name]) %}selected{% endif %}>Oui</option>
+          <option value="false" {% if current == false or (not inherit and current is none and not placeholders[name]) %}selected{% endif %}>Non</option>
+        </select>
+      {% else %}
+        <input name="rule_{{ name }}" inputmode="decimal" value="{{ values.get(name, '') }}" placeholder="{{ placeholders[name] }}">
+      {% endif %}
+      <small class="muted">{{ help }}</small>
+    </label>
+  {% endfor %}
+</div>
+{% endmacro %}

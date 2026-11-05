@@ -1,0 +1,24 @@
+# Pour tester en local / sur un hôte Docker. Le déploiement homelab (Flux) viendra ensuite.
+services:
+  dealarr:
+    build:
+      context: .
+      target: default        # "browser" pour embarquer Playwright
+    image: dealarr:local
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8080:8080"   # local uniquement : pas d'auth intégrée
+    environment:
+      DEALARR_DB: /data/dealarr.db
+      DEALARR_WATCHLIST: /config/watchlist.yaml
+    volumes:
+      - ./watchlist.yaml:/config/watchlist.yaml:ro   # importée au 1er démarrage si la base est vide
+      - dealarr-data:/data
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+
+volumes:
+  dealarr-data:

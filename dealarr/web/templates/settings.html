@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% from "_macros.html" import rule_inputs %}
+{% block title %}Réglages{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Réglages</h1></div>
+
+<section class="card">
+  <h2>Règles d'alerte par défaut</h2>
+  <form class="stack" method="post" action="/settings">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    {{ rule_inputs(overrides, defaults.__dict__, false) }}
+    <label class="field narrow">
+      <span>Port estimé quand il est inconnu (€)</span>
+      <input name="default_shipping" inputmode="decimal" value="{{ '%.2f' | format(default_shipping / 100) if default_shipping is not none else '' }}" placeholder="vide = compté 0 € et signalé « port ? »">
+    </label>
+    <div><button class="btn primary">Enregistrer</button></div>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Service</h2>
+  <dl class="kv">
+    <dt>Vérification</dt><dd>toutes les ~{{ settings.interval_minutes }} min (±{{ settings.jitter_pct | int }} %)</dd>
+    <dt>Dernier cycle</dt><dd>{{ runner.last_run_ts | dt if runner else "—" }}</dd>
+    <dt>Notifications</dt><dd>{{ settings.notifiers | join(", ") }}{% if ntfy_host %} · ntfy sur <code>{{ ntfy_host }}</code>{% endif %}</dd>
+    <dt>Navigateur headless</dt><dd>{{ "activé" if settings.browser_enabled else "désactivé" }}</dd>
+    <dt>Keepa</dt><dd>{{ "clé configurée" if settings.keepa_api_key else "non configuré" }}</dd>
+  </dl>
+  <p class="muted small">Ces paramètres viennent des variables d'environnement du service (voir <code>.env.example</code>).</p>
+  <form method="post" action="/settings/test-notify">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button class="btn">🔔 Envoyer une notification de test</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Sauvegarde</h2>
+  <p><a class="btn" href="/export.yaml">⬇ Exporter la watchlist (YAML)</a></p>
+  <form class="stack" method="post" action="/import" enctype="multipart/form-data" data-confirm="Remplacer TOUTE la watchlist (articles, boutiques, réglages) par ce fichier ? L'historique des prix est conservé.">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label class="field"><span>Importer un fichier YAML <small class="muted">(remplace la watchlist actuelle)</small></span>
+      <input type="file" name="file" accept=".yaml,.yml,text/yaml" required></label>
+    <div><button class="btn danger">Importer et remplacer</button></div>
+  </form>
+</section>
+{% endblock %}
